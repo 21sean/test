@@ -1,20 +1,3 @@
-import streamlit as st
-import streamlit.components.v1 as components
-import urllib.parse
-0ce2695c3850437fabc220852241510
-import streamlit as st
-import requests
-
-# -------------------------------
-# Configuration
-# -------------------------------
-
-# Replace with your actual API key
-WEATHERAPI_KEY = 'YOUR_WEATHERAPI_KEY'  # WeatherAPI.com API Key
-
-# Default location set to China
-DEFAULT_LOCATION = 'China'
-
 # -------------------------------
 # Helper Functions
 # -------------------------------
@@ -96,28 +79,33 @@ def main():
             return
 
     # Location Input with Autocomplete
-    st.write("## Enter a location:")
+    st.write("### Enter a location:")
     location_query = st.text_input("", value=st.session_state['location_name'], key='location_input')
 
-    # Fetch location suggestions
-    suggestions = get_location_suggestions(location_query)
-    suggestion_names = [s['display_name'] for s in suggestions]
-
-    if suggestion_names:
-        # Autocomplete selection
-        selected_location = st.selectbox("Select a location:", suggestion_names)
-        selected_index = suggestion_names.index(selected_location)
+    suggestions = []
+    if location_query:
+        # Fetch location suggestions
+        suggestions = get_location_suggestions(location_query)
+        suggestion_names = [s['display_name'] for s in suggestions]
+    
+    if suggestions:
+        # Use an option menu to simulate autocomplete
+        selected = option_menu(
+            menu_title="",
+            options=suggestion_names,
+            default_index=0,
+            orientation="horizontal"
+        )
+        selected_index = suggestion_names.index(selected)
         selected_lat = suggestions[selected_index]['lat']
         selected_lon = suggestions[selected_index]['lon']
 
         # Update session state
-        st.session_state['location_name'] = selected_location
+        st.session_state['location_name'] = selected
         st.session_state['lat'] = selected_lat
         st.session_state['lon'] = selected_lon
     else:
-        st.write("No location suggestions available. Showing default location.")
-        # Use default location coordinates
-        st.session_state['location_name'] = DEFAULT_LOCATION
+        st.session_state['location_name'] = location_query
 
     # Get and display weather data
     weather = get_weather(st.session_state['lat'], st.session_state['lon'])
@@ -125,10 +113,3 @@ def main():
         display_weather_info(weather, st.session_state['location_name'])
     else:
         st.error("Unable to retrieve weather data.")
-
-    # Additional content can be added here
-    st.write("---")
-    st.write("This is the rest of the app content.")
-
-if __name__ == '__main__':
-    main()
