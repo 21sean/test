@@ -1,3 +1,34 @@
+import streamlit as st
+from streamlit_elements import elements, dashboard, mui, html, sync
+import logging
+
+# Constants for the app title and sidebar (assuming these are defined elsewhere in your code)
+TITLE = "Your App Title"
+
+def sidebar():
+    # Your sidebar implementation
+    pass
+
+def free_questions_exhausted():
+    # Your implementation
+    return False
+
+def user_supplied_openai_key_unavailable():
+    # Your implementation
+    return False
+
+def track(event_name, action, data):
+    # Your tracking implementation
+    pass
+
+def rag_agent_get_results(question):
+    # Simulated agent response
+    return {"output": f"Response to '{question}'"}
+
+def decrement_free_questions():
+    # Your implementation
+    pass
+
 def handle_feedback(score):
     last_bot_message = st.session_state["messages"][-1]["content"]
     track(
@@ -21,7 +52,6 @@ if "messages" not in st.session_state:
             "content": "This is a Proof of Concept application which shows how GenAI can be used with Neo4j to build and consume Knowledge Graphs using both vectors and structured data.\nSee the sidebar for more information!",
         },
     ]
-    st.session_state.user_input = ""
 
 # Create a dashboard layout
 layout = [
@@ -30,6 +60,10 @@ layout = [
 
 # Use elements to render the dashboard
 with elements("dashboard"):
+
+    # Import React and useState
+    from react import useState
+
     # Define the dashboard grid
     with dashboard.Grid(layout, draggableHandle=".draggable"):
         # Create a Paper component to hold the chat interface
@@ -99,18 +133,22 @@ with elements("dashboard"):
                     severity="warning",
                 )
             else:
+                # Use React's useState to manage the input value locally
+                user_input, set_user_input = useState("")
+
                 # Input field and send button
                 def handle_submit():
-                    user_input = st.session_state.user_input.strip()
-                    if user_input != "":
-                        track("rag_demo", "question_submitted", {"question": user_input})
+                    nonlocal user_input  # Access the user_input from the local state
+                    user_input_stripped = user_input.strip()
+                    if user_input_stripped != "":
+                        track("rag_demo", "question_submitted", {"question": user_input_stripped})
                         st.session_state.messages.append(
-                            {"role": "user", "content": user_input}
+                            {"role": "user", "content": user_input_stripped}
                         )
 
                         # Get agent response
                         agent_response = rag_agent_get_results(
-                            question=user_input
+                            question=user_input_stripped
                         )
                         if not isinstance(agent_response, dict):
                             logging.warning(
@@ -127,7 +165,7 @@ with elements("dashboard"):
                         st.session_state.messages.append(new_message)
 
                         decrement_free_questions()
-                        st.session_state.user_input = ""  # Clear input field
+                        set_user_input("")  # Clear input field
 
                         # Update the UI without rerunning
                         sync()
@@ -142,10 +180,8 @@ with elements("dashboard"):
                         fullWidth=True,
                         variant="outlined",
                         name="user_input",
-                        value=st.session_state.user_input,
-                        onChange=lambda e: st.session_state.update(
-                            {"user_input": e.target.value}
-                        ),
+                        value=user_input,
+                        onChange=lambda e: set_user_input(e.target.value),
                         onKeyDown=handle_key_press,
                         sx={"flex": 1},
                         InputProps={"style": {"color": "black"}},
@@ -156,3 +192,5 @@ with elements("dashboard"):
                         variant="contained",
                         sx={"marginLeft": "8px"},
                     )
+
+# If you have other components outside the chat box, you can include them here
