@@ -1,11 +1,3 @@
-# -------------------------------
-# Configuration
-# -------------------------------
-
-# Replace with your actual API keys
-WEATHERAPI_KEY = 'YOUR_WEATHERAPI_KEY'  # WeatherAPI.com API Key
-NEWSAPI_KEY = 'YOUR_NEWSAPI_KEY'        # NewsAPI.org API Key
-
 # Default location set to China
 DEFAULT_LOCATION = 'China'
 
@@ -14,12 +6,8 @@ DEFAULT_LOCATION = 'China'
 # -------------------------------
 
 def get_location_suggestions(query):
-    """
-    Get location suggestions from the WeatherAPI.com Search API based on the user's query.
-    """
     if not query:
         return []
-    
     url = f'http://api.weatherapi.com/v1/search.json?key={WEATHERAPI_KEY}&q={query}'
     response = requests.get(url)
     suggestions = []
@@ -43,45 +31,16 @@ def get_location_suggestions(query):
     return suggestions
 
 def get_weather(lat, lon):
-    """
-    Get weather data from WeatherAPI.com based on latitude and longitude.
-    """
     url = f'http://api.weatherapi.com/v1/current.json?key={WEATHERAPI_KEY}&q={lat},{lon}'
     response = requests.get(url)
     if response.status_code == 200:
         return response.json()
     return None
 
-def display_weather_info(weather_data, location_name):
-    """
-    Display weather information in the Streamlit app.
-    """
-    st.subheader(f"Weather in {location_name}")
-    col1, col2 = st.columns(2)
-    with col1:
-        temp_c = weather_data['current']['temp_c']
-        feelslike_c = weather_data['current']['feelslike_c']
-        st.metric("Temperature", f"{temp_c} °C", f"Feels like {feelslike_c} °C")
-        humidity = weather_data['current']['humidity']
-        st.write(f"**Humidity:** {humidity}%")
-    with col2:
-        condition = weather_data['current']['condition']['text']
-        icon_url = f"http:{weather_data['current']['condition']['icon']}"
-        st.image(icon_url)
-        st.write(f"**Condition:** {condition}")
-    wind_kph = weather_data['current']['wind_kph']
-    wind_dir = weather_data['current']['wind_dir']
-    st.write(f"**Wind:** {wind_kph} kph {wind_dir}")
-
 def get_news(country_name):
-    """
-    Get top 5 news headlines from NewsAPI.org based on the country name.
-    """
-    # Map country name to country code
     country_code = country_name_to_code(country_name)
     if not country_code:
         return []
-
     url = f'https://newsapi.org/v2/top-headlines?country={country_code}&apiKey={NEWSAPI_KEY}&pageSize=5'
     response = requests.get(url)
     if response.status_code == 200:
@@ -91,58 +50,36 @@ def get_news(country_name):
     return []
 
 def country_name_to_code(country_name):
-    """
-    Map country name to ISO 2-letter country code.
-    """
     import pycountry
     try:
         country = pycountry.countries.get(name=country_name)
         if not country:
-            # Try searching by common name
             country = pycountry.countries.search_fuzzy(country_name)[0]
         return country.alpha_2.lower()
     except:
         return None
-
-def display_news_headlines(articles):
-    """
-    Display news headlines using custom HTML/CSS.
-    """
-    st.subheader("Latest News Headlines")
-    for article in articles:
-        title = article.get('title')
-        description = article.get('description')
-        url = article.get('url')
-        urlToImage = article.get('urlToImage')
-        publishedAt = article.get('publishedAt')
-        source = article.get('source', {}).get('name')
-
-        # Custom HTML/CSS
-        news_card = f"""
-        <div style='display: flex; margin-bottom: 15px;'>
-            <div style='flex:1;'>
-                <img src='{urlToImage}' alt='Image' style='width:100px; height:100px; object-fit: cover; margin-right:10px;' />
-            </div>
-            <div style='flex:3;'>
-                <h4 style='margin:0;'><a href='{url}' target='_blank' style='text-decoration:none; color: black;'>{title}</a></h4>
-                <p style='margin:0; color:gray; font-size:12px;'>{publishedAt[:10]} | {source}</p>
-                <p style='margin:0;'>{description}</p>
-            </div>
-        </div>
-        """
-        st.markdown(news_card, unsafe_allow_html=True)
 
 # -------------------------------
 # Main App
 # -------------------------------
 
 def main():
+    st.set_page_config(layout="wide")
+    st.markdown("""
+        <style>
+            .css-18e3th9 {
+                padding-top: 0rem;
+            }
+            .css-1d391kg {
+                padding-top: 1rem;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
     st.title('🌤️ Weather and News Widget App')
-
-    # Initialize session state for location
+    
     if 'location_name' not in st.session_state:
         st.session_state['location_name'] = DEFAULT_LOCATION
-        # Get default location coordinates
         default_location_data = get_location_suggestions(DEFAULT_LOCATION)
         if default_location_data:
             st.session_state['lat'] = default_location_data[0]['lat']
@@ -152,47 +89,84 @@ def main():
             st.error("Unable to get default location coordinates.")
             return
 
-    # Location Input with Autocomplete
     st.write("## Enter a location:")
     location_query = st.text_input("", value=st.session_state['location_name'], key='location_input')
 
-    # Fetch location suggestions
     suggestions = get_location_suggestions(location_query)
     suggestion_names = [s['display_name'] for s in suggestions]
 
     if suggestion_names:
-        # Autocomplete selection
         selected_location = st.selectbox("Select a location:", suggestion_names)
         selected_index = suggestion_names.index(selected_location)
         selected_lat = suggestions[selected_index]['lat']
         selected_lon = suggestions[selected_index]['lon']
         selected_country = suggestions[selected_index]['country']
-
-        # Update session state
         st.session_state['location_name'] = selected_location
         st.session_state['lat'] = selected_lat
         st.session_state['lon'] = selected_lon
         st.session_state['country'] = selected_country
     else:
         st.write("No location suggestions available. Showing default location.")
-        # Use default location coordinates
         st.session_state['location_name'] = DEFAULT_LOCATION
 
-    # Get and display weather data
     weather = get_weather(st.session_state['lat'], st.session_state['lon'])
-    if weather:
-        display_weather_info(weather, st.session_state['location_name'])
-    else:
-        st.error("Unable to retrieve weather data.")
-
-    # Get and display news headlines
     articles = get_news(st.session_state.get('country', ''))
-    if articles:
-        display_news_headlines(articles)
-    else:
-        st.write("No news articles available for this location.")
 
-    # Additional content can be added here
+    with elements("dashboard"):
+        layout = [
+            dashboard.Item("weather_widget", 0, 0, 6, 4),
+            dashboard.Item("news_widget", 6, 0, 6, 8),
+        ]
+        with dashboard.Grid(layout, draggableHandle=".draggable"):
+            with mui.Paper(key="weather_widget", elevation=3, sx={"padding": "16px"}):
+                mui.Typography("Weather", variant="h6", className="draggable")
+                if weather:
+                    temp_c = weather['current']['temp_c']
+                    feelslike_c = weather['current']['feelslike_c']
+                    humidity = weather['current']['humidity']
+                    condition = weather['current']['condition']['text']
+                    icon_url = f"http:{weather['current']['condition']['icon']}"
+                    wind_kph = weather['current']['wind_kph']
+                    wind_dir = weather['current']['wind_dir']
+
+                    mui.Box(
+                        mui.Typography(f"Temperature: {temp_c} °C (Feels like {feelslike_c} °C)"),
+                        mui.Typography(f"Humidity: {humidity}%"),
+                        mui.Typography(f"Condition: {condition}"),
+                        mui.Typography(f"Wind: {wind_kph} kph {wind_dir}"),
+                        mui.Avatar(src=icon_url, variant="square", sx={"width": 64, "height": 64}),
+                    )
+                else:
+                    mui.Typography("Unable to retrieve weather data.")
+
+            with mui.Paper(key="news_widget", elevation=3, sx={"padding": "16px"}):
+                mui.Typography("Latest News Headlines", variant="h6", className="draggable")
+                if articles:
+                    for article in articles:
+                        title = article.get('title')
+                        description = article.get('description')
+                        url = article.get('url')
+                        urlToImage = article.get('urlToImage')
+                        publishedAt = article.get('publishedAt')
+                        source = article.get('source', {}).get('name')
+
+                        with mui.Card(sx={"marginBottom": "15px"}):
+                            if urlToImage:
+                                mui.CardMedia(
+                                    component="img",
+                                    image=urlToImage,
+                                    height="140",
+                                )
+                            with mui.CardContent:
+                                mui.Typography(title, gutterBottom=True, variant="h6", component="div")
+                                mui.Typography(f"{publishedAt[:10]} | {source}", color="text.secondary", variant="body2")
+                                mui.Typography(description, variant="body2", color="text.secondary")
+                            mui.CardActions(
+                                mui.Button("Read More", href=url, target="_blank")
+                            )
+                else:
+                    mui.Typography("No news articles available for this location.")
+
     st.write("---")
     st.write("This is the rest of the app content.")
 
