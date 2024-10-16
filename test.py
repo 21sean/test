@@ -1,38 +1,53 @@
- with sync():
+# Ensure input_value and button_clicked are in session_state
+if "input_value" not in st.session_state:
+    st.session_state.input_value = ""
+if "button_clicked" not in st.session_state:
+    st.session_state.button_clicked = False
 
-        # Display chat messages from history
-        for message in st.session_state.messages:
-            if message["role"] == "user":
-                mui.Typography(
-                    message["content"],
-                    align="left",
-                    sx={"marginBottom": 2, "textAlign": "left"},
-                )
-            else:
-                mui.Typography(
-                    message["content"],
-                    align="right",
-                    sx={"marginBottom": 2, "textAlign": "right"},
-                )
+# Move the chat into a streamlit-elements component
+with elements("chat_box"):
 
-        # Input area for new message
-        with mui.Stack(direction="row", spacing=1):
-            mui.TextField(
-                label="Ask question on the SEC Filings",
-                fullWidth=True,
-                variant="outlined",
-                onChange=sync("input_value"),
-                value=st.session_state.get("input_value", ""),
+    # Display chat messages from history
+    for message in st.session_state.messages:
+        if message["role"] == "user":
+            mui.Typography(
+                message["content"],
+                align="left",
+                sx={"marginBottom": 2, "textAlign": "left", "color": "blue"},
             )
-            mui.Button(
-                "Send",
-                variant="contained",
-                onClick=sync("button_clicked"),
+        else:
+            mui.Typography(
+                message["content"],
+                align="right",
+                sx={"marginBottom": 2, "textAlign": "right", "color": "green"},
             )
+
+    # Input area for new message
+    with mui.Stack(direction="row", spacing=1):
+
+        # Define event handlers
+        def handle_input_change(event):
+            st.session_state.input_value = event.target.value
+
+        def handle_button_click(event):
+            st.session_state.button_clicked = True
+
+        mui.TextField(
+            label="Ask question on the SEC Filings",
+            fullWidth=True,
+            variant="outlined",
+            value=st.session_state.input_value,
+            onChange=handle_input_change,
+        )
+        mui.Button(
+            "Send",
+            variant="contained",
+            onClick=handle_button_click,
+        )
 
 # Handle send button click outside the elements context
-if st.session_state.get("button_clicked"):
-    user_input = st.session_state.get("input_value", "")
+if st.session_state.button_clicked:
+    user_input = st.session_state.input_value
     if user_input:
         if free_questions_exhausted() and user_supplied_openai_key_unavailable():
             st.warning(
@@ -41,21 +56,17 @@ if st.session_state.get("button_clicked"):
             st.stop()
 
         track("rag_demo", "question_submitted", {"question": user_input})
-        st.session_state.messages.append(
-            {"role": "user", "content": user_input}
-        )
+        st.session_state.messages.append({"role": "user", "content": user_input})
 
         # Agent response
         with st.spinner("..."):
-            agent_response = rag_agent.get_results(
-                question=user_input, callbacks=[]
-            )
+            agent_response = rag_agent.get_results(question=user_input, callbacks=[])
 
             if not isinstance(agent_response, dict):
                 logging.warning(
                     f"Agent response was not the expected dict type: {agent_response}"
                 )
-                agent_response = str(agent_response)
+                agent_response = {"output": str(agent_response)}
 
             content = agent_response["output"]
 
