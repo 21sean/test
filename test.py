@@ -1,6 +1,7 @@
 import json
 import streamlit as st
 from streamlit_elements import elements, mui
+import re
 
 # Define default columns
 DEFAULT_COLUMNS = [
@@ -13,31 +14,35 @@ def handle_edit(params):
     print(params)
 
 # Function to handle search text change
-def on_search_change(value):
-    st.session_state['search_text'] = value
+def on_search_change(event):
+    st.session_state['search_text'] = event.target.value
+    st.experimental_rerun()  # Force the app to rerun to update the data grid
 
 # Main function to display the DataGrid
 def display_data_grid(kg):
     # Get the search text from session state or initialize it
     search_text = st.session_state.get('search_text', '')
 
-    # Construct the query with the search text
-    # Using parameterized queries for security
-    query_string = """
+    # Sanitize the search text to prevent injection attacks
+    safe_search_text = re.sub(r"['\"\\\\]", '', search_text)
+
+    # Construct the query with the sanitized search text
+    query_string = f"""
     MATCH (users:User)
-    WHERE users.name CONTAINS $name
+    WHERE users.name CONTAINS '{safe_search_text}'
     RETURN users LIMIT 5
     """
 
-    # Query Neo4j with parameters
-    data = kg.query(query_string, name=search_text)
+    # Query Neo4j
+    data = kg.query(query_string)
 
     # Process the data to fit the DataGrid format
     processed_data = []
     for record in data:
         user = record['users']
+        # Assuming 'user' is a dictionary-like object
         processed_data.append({
-            'id': user.id,  # Assuming 'id' is the unique identifier
+            'id': user.get('id', ''),  # Ensure a unique 'id' field
             'name': user.get('name', ''),
             'address': user.get('address', ''),
         })
@@ -84,7 +89,3 @@ def display_data_grid(kg):
                     disableSelectionOnClick=True,
                     onCellEditCommit=handle_edit,
                 )
-
-# Example usage
-# Assuming 'kg' is your Neo4j connection object
-# display_data_grid(kg)
