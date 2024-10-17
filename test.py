@@ -1,52 +1,50 @@
 import json
 import streamlit as st
-from streamlit_elements import mui, elements, dashboard
-from .dashboard import Dashboard
+from streamlit_elements import elements, mui
 
-class DataGrid(Dashboard.Item):
+# Define default columns
+DEFAULT_COLUMNS = [
+    { "field": 'name', "headerName": 'Name', "width": 150, "editable": True },
+    { "field": 'address', "headerName": 'Address', "width": 150, "editable": True },
+]
 
-    DEFAULT_COLUMNS = [
-        { "field": 'name', "headerName": 'Name', "width": 150, "editable": True },
-        { "field": 'address', "headerName": 'Address', "width": 150, "editable": True },
-    ]
+# Function to handle cell edit events (optional)
+def handle_edit(params):
+    print(params)
 
-    def __init__(self, key, kg):
-        super().__init__(key)
-        self.kg = kg
+# Function to handle search text change
+def on_search_change(value):
+    st.session_state['search_text'] = value
 
-    def _handle_edit(self, params):
-        print(params)
+# Main function to display the DataGrid
+def display_data_grid(kg):
+    # Get the search text from session state or initialize it
+    search_text = st.session_state.get('search_text', '')
 
-    def _on_search_change(self, event):
-        st.session_state['search_text'] = event.target.value
+    # Construct the query with the search text
+    # Using parameterized queries for security
+    query_string = """
+    MATCH (users:User)
+    WHERE users.name CONTAINS $name
+    RETURN users LIMIT 5
+    """
 
-    def __call__(self):
-        # Get the search text from session state or initialize it
-        search_text = st.session_state.get('search_text', '')
+    # Query Neo4j with parameters
+    data = kg.query(query_string, name=search_text)
 
-        # Construct the query with the search text
-        query_string = f"""
-        MATCH (users:User)
-        WHERE users.name CONTAINS '{search_text}'
-        RETURN users LIMIT 5
-        """
+    # Process the data to fit the DataGrid format
+    processed_data = []
+    for record in data:
+        user = record['users']
+        processed_data.append({
+            'id': user.id,  # Assuming 'id' is the unique identifier
+            'name': user.get('name', ''),
+            'address': user.get('address', ''),
+        })
 
-        # Query Neo4j
-        data = self.kg.query(query_string)
-
-        # Process the data to fit the DataGrid format
-        processed_data = []
-        for record in data:
-            user = record['users']
-            processed_data.append({
-                'id': user.id,  # Assuming 'id' is the unique identifier
-                'name': user.get('name', ''),
-                'address': user.get('address', ''),
-            })
-
-        # Render the UI components
+    # Render the UI components
+    with elements("data_grid"):
         with mui.Paper(
-            key=self._key,
             sx={
                 "display": "flex",
                 "flexDirection": "column",
@@ -55,28 +53,38 @@ class DataGrid(Dashboard.Item):
             },
             elevation=1
         ):
-            with self.title_bar(
-                padding="10px 15px 10px 15px",
-                dark_switcher=False
+            # Title Bar
+            with mui.Box(
+                sx={
+                    "padding": "10px 15px",
+                    "display": "flex",
+                    "alignItems": "center",
+                    "backgroundColor": "#f5f5f5"
+                }
             ):
                 mui.icon.ViewCompact()
-                mui.Typography("Data Grid")
+                mui.Typography("Data Grid", variant="h6", sx={"marginLeft": "10px"})
 
             # Search Box
             mui.TextField(
                 label="Search by Name",
-                value=search_text,
-                onChange=self._on_search_change,
+                defaultValue=search_text,
+                onChange=on_search_change,
                 sx={"margin": "10px"}
             )
 
+            # Data Grid
             with mui.Box(sx={"flex": 1, "minHeight": 0}):
                 mui.DataGrid(
-                    columns=self.DEFAULT_COLUMNS,
+                    columns=DEFAULT_COLUMNS,
                     rows=processed_data,
                     pageSize=5,
                     rowsPerPageOptions=[5],
                     checkboxSelection=True,
                     disableSelectionOnClick=True,
-                    onCellEditCommit=self._handle_edit,
+                    onCellEditCommit=handle_edit,
                 )
+
+# Example usage
+# Assuming 'kg' is your Neo4j connection object
+# display_data_grid(kg)
